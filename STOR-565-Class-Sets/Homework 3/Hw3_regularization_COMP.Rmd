@@ -1,0 +1,687 @@
+---
+title: "STOR 565 Fall 2019 Homework 3"
+author: "Hunter Finger"
+output:
+  pdf_document: default
+  html_document: default
+header-includes: \usepackage{amsgen,amsmath,amstext,amsbsy,amsopn,amssymb,mathabx,amsthm,bm,bbm}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if(!require(ISLR)) { install.packages("ISLR", repos = "http://cran.us.r-project.org"); library(ISLR) }
+if(!require(leaps)) { install.packages("leaps", repos = "http://cran.us.r-project.org"); library(leaps) }
+if(!require(glmnet)) { install.packages("glmnet", repos = "http://cran.us.r-project.org"); library(glmnet) }
+if(!require(pls)) { install.packages("pls", repos = "http://cran.us.r-project.org"); library(pls) }
+```
+\theoremstyle{definition}
+\newtheorem*{hint}{Hint}
+
+\theoremstyle{remark}
+\newtheorem*{rmk}{Remark}
+
+*Remark.* This homework aims to help you further understand the model selection techniques in linear model. Credits for **Theoretical Part** and **Computational Part** are in total 100 pt. For **Computational Part** , please complete your answer in the **RMarkdown** file and summit your printed PDF homework created by it.
+
+## Computational Part
+
+**Hint.** Before starting your work, carefully read Textbook Chapter 6.5-6.7 (Lab 1-3). Mimic the related analyses you learn from it. Also look at the demonstrations I showed you in class (see Sakai/Resources/Lectures and click on each Lecture for demonstrations). Some related packages have been loaded in setup.
+
+1. (Model Selection, Textbook 6.8, *18 pt*) In this exercise, we will generate simulated data, and will then use this data to perform model selection.
+
+(a) Use the `rnorm` function to generate a predictor $\bm{X}$ of length $n = 100$, as well as a noise vector $\bm{\epsilon}$ of length $n = 100$. Do not print the entire vector.
+```{r}
+set.seed(83)
+X = rnorm(100)
+epsilon = rnorm(100)
+```
+    
+**Hint.** Before generating random numbers, fix your favourite random seed by `set.seed` so that your result is reproducible as you carry forward your exploration.
+
+(b) Generate a response vector $\bm{Y}$ of length $n = 100$ according to the model $$ Y = \beta_0 + \beta_1 X + \beta_2 X^2 + \beta_3 X^3 + \epsilon, $$ where $\beta_0 = 3$, $\beta_1 = 2$, $\beta_2 = -3$, $\beta_3 = 0.3$. Do not print the entire vector.
+```{r}
+b0 = 3
+b1 = 2
+b2 = -3
+b3 = .3
+
+Y = (b0 + b1*X + b2*(X^2) + b3*(X^3) + epsilon)
+Y
+```
+
+(c) Use the `regsubsets` function from `leaps` package to perform best subset selection in order to choose the best model containing the predictors $(X, X^2, \cdots, X^{10})$. 
+    
+What is the best model obtained according to $C_p$, BIC, and adjusted $R^2$? Show some plots to provide evidence for your answer, and report the coefficients of the best model obtained.
+    
+```{r}
+full = data.frame(Y, X)
+sub = regsubsets(Y ~ X + I(X^2) + I(X^3) + I(X^4) + I(X^5) 
+                          + I(X^6) + I(X^7) + I(X^8)+ I(X^9)+ I(X^10)
+                          , data = full, nvmax=10)
+sub.summary = summary(sub)
+plot(sub.summary$cp, xlab = "Variable Count", ylab = "Cp")
+points(which.min(sub.summary$cp), sub.summary$cp[which.min(sub.summary$cp)], 
+       col = "red", cex = 1, pch = 8)
+plot(sub.summary$bic, xlab = "Variable Count", ylab = "BIC")
+points(which.min(sub.summary$bic), sub.summary$bic[which.min(sub.summary$bic)], 
+       col = "red", cex = 1, pch = 8)
+plot(sub.summary$adjr2, xlab = "Variable Count", ylab = "Adj R^2")
+points(which.max(sub.summary$adjr2), sub.summary$adjr2[which.max(sub.summary$adjr2)], 
+       col = "red", cex = 1, pch = 8)
+```
+
+
+```
+With 2 models, the number of variables chosen for the model is 4. Those models are Cp and Adjusted R Squared. The three variable model gives the lowest BIC.
+```
+
+(d) Repeat (c), using forward stepwise selection and also using backwards stepwise selection. How does your answer compare to the results in (c)? You must show a summary of the selected model or other evidence to support your statements.
+    
+```{r}
+forward = regsubsets(Y ~ X + I(X^2) + I(X^3) + I(X^4) + I(X^5) 
+                          + I(X^6) + I(X^7) + I(X^8)+ I(X^9)+ I(X^10)
+                          , data = full, nvmax=10, method = "forward")
+forward.summary = summary(forward)
+plot(forward.summary$cp, xlab = "Variable Count", ylab = "Cp")
+points(which.min(forward.summary$cp), forward.summary$cp[which.min(forward.summary$cp)],
+       col = "red", cex = 1, pch = 8)
+plot(forward.summary$bic, xlab = "Variable Count", ylab = "BIC")
+points(which.min(forward.summary$bic), forward.summary$bic[which.min(forward.summary$bic)],
+       col = "red", cex = 1, pch = 8)
+plot(forward.summary$adjr2, xlab = "Variable Count", ylab = "Adj R^2")
+points(which.max(forward.summary$adjr2), forward.summary$adjr2[which.max(forward.summary$adjr2)],
+       col = "red", cex = 1, pch = 8) 
+
+backward = regsubsets(Y ~ X + I(X^2) + I(X^3) + I(X^4) + I(X^5) 
+                          + I(X^6) + I(X^7) + I(X^8)+ I(X^9)+ I(X^10)
+                          , data = full, nvmax=10, method = "backward")
+backward.summary = summary(backward)
+plot(backward.summary$cp, xlab = "Variable Count", ylab = "Cp")
+points(which.min(backward.summary$cp), backward.summary$cp[which.min(backward.summary$cp)],
+       col = "red", cex = 1, pch = 8)
+plot(backward.summary$bic, xlab = "Variable Count", ylab = "BIC")
+points(which.min(backward.summary$bic), backward.summary$bic[which.min(backward.summary$bic)],
+       col = "red", cex = 1, pch = 8)
+plot(backward.summary$adjr2, xlab = "Variable Count", ylab = "Adj R^2")
+points(which.max(backward.summary$adjr2), backward.summary$adjr2[which.max(backward.summary$adjr2)], 
+       col = "red", cex = 1, pch = 8)
+summary(sub)
+summary(forward)
+summary(backward)
+```
+
+```
+Backwards subset regression wants to select X, X^2, X^5, and X^8 for the 4 variable model and drops X^8 in the 3 variable model. Best subset and forward subset regression both want X, X^2, X^3, and X^10 for the 4 variable model and drop X^10 for the 3 variable model.
+```
+
+(e) Now fit a LASSO model with `glmnet` function from `glmnet` package to the simulated data, again using $(X,X^2,\cdots,X^{10})$ as predictors. Use 5-fold cross-validation to select the optimal value of $\lambda$. Create plots of the cross-validation error as a function of $\lambda$. Report the resulting coefficient estimates, and discuss the results obtained.
+    
+    ```{r}
+    x = model.matrix(Y ~ X + I(X^2) + I(X^3) + I(X^4) + I(X^5) + I(X^6) + I(X^7) + I(X^8)+ I(X^9)+ I(X^10), data = full)
+    lasso = cv.glmnet(x, Y, nfolds = 5)
+    plot(lasso)
+    lambda = lasso$lambda.min
+    lasso_fit = glmnet(x, Y)
+    predict(lasso_fit, s=lambda, type = "coefficients")[1:12,]
+```
+
+```
+Lasso chose X, X^1, X^2, X^3 and X^9 as the significant predictors.
+```
+
+(f) Now generate a response vector $Y$ according to the model $$Y = \beta_0 + \beta_7 X^7 + \epsilon,$$ where $\beta_7 = 7$, and perform best subset selection and the LASSO. Discuss the results obtained.
+    
+```{r}
+b7 = 7
+Y = b0 + b7*(X^7)+epsilon
+
+sub = regsubsets(Y ~ X + I(X^2) + I(X^3) + I(X^4) + I(X^5) 
+                          + I(X^6) + I(X^7) + I(X^8)+ I(X^9)+ I(X^10)
+                          , data = full, nvmax=10)
+sub.summary = summary(sub)
+plot(sub.summary$cp, xlab = "Variable Count", ylab = "Cp")
+points(which.min(sub.summary$cp), sub.summary$cp[which.min(sub.summary$cp)], 
+       col = "red", cex = 1, pch = 8)
+plot(sub.summary$bic, xlab = "Variable Count", ylab = "BIC")
+points(which.min(sub.summary$bic), sub.summary$bic[which.min(sub.summary$bic)], 
+       col = "red", cex = 1, pch = 8)
+plot(sub.summary$adjr2, xlab = "Variable Count", ylab = "Adj R^2")
+points(which.max(sub.summary$adjr2), sub.summary$adjr2[which.max(sub.summary$adjr2)], 
+       col = "red", cex = 1, pch = 8)
+
+    x = model.matrix(Y ~ X + I(X^2) + I(X^3) + I(X^4) + I(X^5) + I(X^6) + I(X^7) + I(X^8)+ I(X^9)+ I(X^10), data = full)
+    lasso = cv.glmnet(x, Y, nfolds = 5)
+    plot(lasso)
+    lambda = lasso$lambda.min
+    lasso_fit = glmnet(x, Y)
+    predict(lasso_fit, s=lambda, type = "coefficients")[1:12,]
+    
+```
+
+```
+
+```
+    
+---
+    
+    
+2. (Prediction, *20 pt*) In this exercise, we will try to develop a prediction model for wins in a basketball season for a team based on a host of other factors. The starting point is to load the nba-teams-2017 data set (which was scraped by Gaston Sanchez at Berkeley). 
+
+(a) Do some exploratory data analysis by picking 6-7 features that you think might be interesting and explore relationship between these features by making a scatterplot matrix like the following (you **do not** have to use the same features I am using!):
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(GGally)
+  
+nba = read.csv("nba-teams-2017.csv")
+nba1 = nba %>% select(wins, points3, off_rebounds, plus_minus, blocks, free_throws_att, points3_attempted)
+ggpairs(nba1[,1:7])
+```
+
+*NOTE: You may remove the includegraphics statements below when knitting your own response, if they are giving you trouble*
+
+\includegraphics{rplot.jpg}
+
+\includegraphics{scatterplot.pdf}
+
+(b) The aim is now to predict *wins* based on the other features. First explain why you would remove the "losses" column from the above data set? Would you necessarily remove any other columns?
+
+```
+Losses needs to be removed because it is the opposite of a win. There is a -1 correlation between the two because they are opposites and mutually exclusive. Win percentage is probably another variable that is worth removing because win percentage * games gives you the number of wins. Team is another variable that should be thrown out because it can influence the results based on team name.
+```
+```{r}
+nba = select(nba, -c(losses, win_prop, team))
+```
+
+(c) Use ridge regression with 5 fold cross-validation to choose the optimal tuning parameter and report your model along with your test error as found by cross-validation for that choice of $\lambda$. 
+
+```{r}
+set.seed(83)
+train <- sample(1:nrow(nba), nrow(nba) / 2)
+test <- (-train)
+nba.train <- nba[train,]
+nba.test <- nba[test,]
+
+grid.lambda <- 10^seq(10, -2, length = 100)
+
+
+train.mat <- model.matrix(wins ~ ., data = nba.train)
+test.mat <- model.matrix(wins ~ ., data = nba.test)
+
+ridge.model.train <- glmnet(train.mat, nba.train$wins, alpha = 0, lambda = grid.lambda)
+
+cv.out <- cv.glmnet(train.mat, nba.train$wins, alpha = 0, nfolds = 5)
+plot(cv.out)
+
+bestlam.ridge <- cv.out$lambda.min
+bestlam.ridge
+pred.ridge <- predict(ridge.model.train, s = bestlam.ridge, newx = test.mat)
+mean((pred.ridge - nba.test$wins)^2)
+```
+
+```
+The MSPE for the data was 81.99 using 5 fold ridge regression.
+```
+
+(d) Fit a LASSO model on the training set, with $\lambda$ chosen by 5-fold cross-validation. Report the test error obtained, along with the number of non-zero coefficient estimates.
+
+```{r}
+lasso.model.train <- glmnet(train.mat, nba.train$wins, alpha = 1, lambda = grid.lambda)
+
+cv.out <- cv.glmnet(train.mat, nba.train$wins, alpha = 1, nfolds = 5)
+plot(cv.out)
+
+bestlam.lasso <- cv.out$lambda.min
+bestlam.lasso
+pred.lasso <- predict(lasso.model.train, s = bestlam.lasso, newx = test.mat)
+mean((pred.lasso - nba.test$wins)^2)
+predict(lasso.model.train, s = bestlam.lasso, type = "coefficients")
+```
+
+```
+The MSPE for lasso was 13.29. This is substaintally less than ridge. As seen, lasso used 3 variables plus the intercept to predict the wins and losses.
+```
+---
+
+3. Let us now try to understand the performance of the various techniques on simulated data to get insight.
+
+Suppose your true model is  $\mathbf{y}=\mathbf{X\beta} + \mathbf{\epsilon}$
+
+where:
+
+- $\mathbf{\beta}=(\underbrace{1,...,1}_{20}, \underbrace{0,...,0}_{1980})^T$
+- $p=2000 > n=1000$
+- Uncorrelated predictors: 
+    + $\mathbf{X}_i \overset{\text{iid}}{\sim} N(\mathbf{0}, \mathbf{I})$. Precisely for the $i$-th individual, $\mathbf{X}_i = (X_{i1}, X_{i2}, \ldots, X_{i,2000})$ where $X_{i,j}$ are independent and identically distributed normal random variables with mean zero and variance one. 
+- $\mathbf{\epsilon} \overset{\text{iid}}{\sim} N(\mathbf{0},\mathbf{I})$. Precisely: $\mathbf{\epsilon} = (\epsilon_1, \epsilon_2, \ldots, \epsilon_{1000})$ where $\epsilon_i$ are independent and identically distributed normal random variables with mean zero and variance 1.  
+
+
+
+(a)(2 pt) Generate the above data with seed = 1234
+
+
+```{r}
+set.seed(1234)
+X = matrix(rnorm(1000*2000), 1000, 2000)
+train = sample(1:nrow(X), nrow(X) / 1)
+
+beta = c(rep(1,20), rep(0, 1980))
+epsilon = rnorm(1000)
+
+Y = X*beta + epsilon
+
+X.train = X[train,]
+Y.train = Y[train]
+
+
+train.mat = model.matrix(Y.train ~ X.train)
+
+
+
+
+```
+
+
+
+(b) (6 pt) Using glmnet fit Lasso, ridge regression and elastic net with $\alpha = .1,.2,.3,.4,.5,.6,.7, .8, .9$
+
+```{r}
+# YOUR CODE HERE (uncomment first of course)
+```
+
+What I am looking for: (outputting the entire model for each one of the above is not-trivial so):
+
+- code showing the fitting of each of the above models
+```{r}
+lasso.model.train <- glmnet(train.mat, Y.train, alpha = 1, lambda = grid.lambda)
+ridge.model.train <- glmnet(train.mat, Y.train, alpha = 0, lambda = grid.lambda)
+en.model.train1<- glmnet(train.mat, Y.train, alpha = .1, lambda = grid.lambda)
+en.model.train2<- glmnet(train.mat, Y.train, alpha = .2, lambda = grid.lambda)
+en.model.train3<- glmnet(train.mat, Y.train, alpha = .3, lambda = grid.lambda)
+en.model.train4<- glmnet(train.mat, Y.train, alpha = .4, lambda = grid.lambda)
+en.model.train5<- glmnet(train.mat, Y.train, alpha = .5, lambda = grid.lambda)
+en.model.train6<- glmnet(train.mat, Y.train, alpha = .6, lambda = grid.lambda)
+en.model.train7<- glmnet(train.mat, Y.train, alpha = .7, lambda = grid.lambda)
+en.model.train8<- glmnet(train.mat, Y.train, alpha = .8, lambda = grid.lambda)
+en.model.train9<- glmnet(train.mat, Y.train, alpha = .9, lambda = grid.lambda)
+
+```
+
+- For ridge, Lasso and for $\alpha = .2, ,.4 ,.6$ plot the cross-validated (6 fold) MSE versus lambda as well as your optimal value of $lambda$ for ridge, Lasso and for $\alpha = .2, ,.4 ,.6$
+
+```{r}
+cv.out.lasso <- cv.glmnet(train.mat, Y.train, alpha = 1, nfolds = 6)
+plot(cv.out.lasso)
+
+bestlam.lasso <- cv.out$lambda.min
+bestlam.lasso
+
+
+cv.out.ridge <- cv.glmnet(train.mat, Y.train, alpha = 0, nfolds = 6)
+plot(cv.out.ridge)
+
+bestlam.ridge <- cv.out$lambda.min
+bestlam.ridge
+
+cv.out.en1 <- cv.glmnet(train.mat, Y.train, alpha = .1, nfolds = 6)
+plot(cv.out.en1)
+
+bestlam.en1 <- cv.out$lambda.min
+bestlam.en1
+
+cv.out.en2 <- cv.glmnet(train.mat, Y.train, alpha = .2, nfolds = 6)
+plot(cv.out.en2)
+
+bestlam.en2 <- cv.out$lambda.min
+bestlam.en2
+
+cv.out.en3 <- cv.glmnet(train.mat, Y.train, alpha = .3, nfolds = 6)
+plot(cv.out.en3)
+
+bestlam.en3 <- cv.out$lambda.min
+bestlam.en3
+
+cv.out.en4 <- cv.glmnet(train.mat, Y.train, alpha = .4, nfolds = 6)
+plot(cv.out.en4)
+
+bestlam.en4 <- cv.out$lambda.min
+bestlam.en4
+
+cv.out.en5 <- cv.glmnet(train.mat, Y.train, alpha = .5, nfolds = 6)
+plot(cv.out.en5)
+
+bestlam.en5 <- cv.out$lambda.min
+bestlam.en5
+
+cv.out.en6 <- cv.glmnet(train.mat, Y.train, alpha = .6, nfolds = 6)
+plot(cv.out.en6)
+
+bestlam.en6 <- cv.out$lambda.min
+bestlam.en6
+
+cv.out.en7 <- cv.glmnet(train.mat, Y.train, alpha = .7, nfolds = 6)
+plot(cv.out.en7)
+
+bestlam.en7 <- cv.out$lambda.min
+bestlam.en7
+
+cv.out.en8 <- cv.glmnet(train.mat, Y.train, alpha = .8, nfolds = 6)
+plot(cv.out.en8)
+
+bestlam.en8 <- cv.out$lambda.min
+bestlam.en8
+
+cv.out.en9 <- cv.glmnet(train.mat, Y.train, alpha = .9, nfolds = 6)
+plot(cv.out.en9)
+
+bestlam.en9 <- cv.out$lambda.min
+bestlam.en9
+
+```
+
+- The number of non-zero regression coeffecients for each of the above techniques. 
+```{r}
+library(coefplot)
+extract.coef(cv.out.lasso)
+extract.coef(cv.out.en1)
+extract.coef(cv.out.en2)
+extract.coef(cv.out.en3)
+extract.coef(cv.out.en4)
+extract.coef(cv.out.en5)
+extract.coef(cv.out.en6)
+extract.coef(cv.out.en7)
+extract.coef(cv.out.en8)
+extract.coef(cv.out.en9)
+
+```
+
+
+(c) (2 pt) Simulate an independent {\bf test} data set of the same type as above (response $y$ and $2000$ features per subject) with $n=10,000$. Use seed = 4567. 
+
+```{r}
+set.seed(4567)
+X = matrix(rnorm(10000*2000),10000,2000)
+test = sample(1:nrow(X), nrow(X) / 1)
+  
+beta = c(rep(1,20), rep(0, 1980))
+epsilon = rnorm(1000)
+
+Y = X*beta + epsilon
+
+X.test = X[test,]
+Y.test = Y[test]
+
+
+test.mat = model.matrix(Y.test ~ X.test)
+
+```
+
+(d) (2 pt) Using the models you obtained above using the training data set and the 11 models above, compute average test error for each of the 11 models. Which one is the "best" model? 
+
+
+```{r}
+pred.ridge <- predict(ridge.model.train, s = bestlam.ridge, newx = test.mat)
+ridge.MSPE = mean((pred.ridge - Y.test)^2)
+ridge.MSPE
+
+pred.lasso <- predict(lasso.model.train, s = bestlam.lasso, newx = test.mat)
+lasso.MSPE = mean((pred.lasso -Y.test)^2)
+lasso.MSPE
+
+pred.en1 <- predict(en.model.train1, s = bestlam.en1, newx = test.mat)
+en1.MSPE = mean((pred.en1 - Y.test)^2)
+en1.MSPE
+
+pred.en2 <- predict(en.model.train2, s = bestlam.en2, newx = test.mat)
+en2.MSPE = mean((pred.en2 - Y.test)^2)
+en2.MSPE
+
+pred.en3 <- predict(en.model.train3, s = bestlam.en3, newx = test.mat)
+en3.MSPE = mean((pred.en3 - Y.test)^2)
+en3.MSPE
+
+pred.en4 <- predict(en.model.train4, s = bestlam.en4, newx = test.mat)
+en4.MSPE = mean((pred.en4 - Y.test)^2)
+en4.MSPE
+
+pred.en5 <- predict(en.model.train5, s = bestlam.en5, newx = test.mat)
+en5.MSPE = mean((pred.en5 - Y.test)^2)
+en5.MSPE
+
+pred.en6 <- predict(en.model.train6, s = bestlam.en6, newx = test.mat)
+en6.MSPE = mean((pred.en6 - Y.test)^2)
+en6.MSPE
+
+pred.en7 <- predict(en.model.train7, s = bestlam.en7, newx = test.mat)
+en7.MSPE = mean((pred.en7 - Y.test)^2)
+en7.MSPE
+
+pred.en8 <- predict(en.model.train8, s = bestlam.en8, newx = test.mat)
+en8.MSPE = mean((pred.en8 - Y.test)^2)
+en8.MSPE
+
+pred.en9 <- predict(en.model.train9, s = bestlam.en9, newx = test.mat)
+en9.MSPE = mean((pred.en9 - Y.test)^2)
+en9.MSPE
+```
+
+```
+The best model is elastic net with an alpha of .3. It yields the lowest MSPE.
+```
+
+4. Do all the 4 parts of problem 3 but where the underlying model is:
+
+$\mathbf{\beta}=(\underbrace{1,...,1}_{1000}, \underbrace{0,...,0}_{1000})^T$
+
+(a)(2 pt) Generate the above data with seed = 8910
+
+
+```{r}
+set.seed(8910)
+X = matrix(rnorm(1000*2000), 1000, 2000)
+train = sample(1:nrow(X), nrow(X) / 1)
+
+beta = c(rep(1,1000), rep(0, 1000))
+epsilon = rnorm(1000)
+
+Y = X*beta + epsilon
+
+X.train = X[train,]
+Y.train = Y[train]
+
+
+train.mat = model.matrix(Y.train ~ X.train)
+```
+
+
+
+(b) (6 pt) Using glmnet fit Lasso, ridge regression and elastic net with $\alpha = .1,.2,.3,.4,.5,.6,.7, .8, .9$
+
+```{r}
+# YOUR CODE HERE (uncomment first of course)
+```
+
+What I am looking for: (outputting the entire model for each one of the above is not-trivial so):
+
+- code showing the fitting of each of the above models
+```{r}
+lasso.model.train <- glmnet(train.mat, Y.train, alpha = 1, lambda = grid.lambda)
+ridge.model.train <- glmnet(train.mat, Y.train, alpha = 0, lambda = grid.lambda)
+en.model.train1<- glmnet(train.mat, Y.train, alpha = .1, lambda = grid.lambda)
+en.model.train2<- glmnet(train.mat, Y.train, alpha = .2, lambda = grid.lambda)
+en.model.train3<- glmnet(train.mat, Y.train, alpha = .3, lambda = grid.lambda)
+en.model.train4<- glmnet(train.mat, Y.train, alpha = .4, lambda = grid.lambda)
+en.model.train5<- glmnet(train.mat, Y.train, alpha = .5, lambda = grid.lambda)
+en.model.train6<- glmnet(train.mat, Y.train, alpha = .6, lambda = grid.lambda)
+en.model.train7<- glmnet(train.mat, Y.train, alpha = .7, lambda = grid.lambda)
+en.model.train8<- glmnet(train.mat, Y.train, alpha = .8, lambda = grid.lambda)
+en.model.train9<- glmnet(train.mat, Y.train, alpha = .9, lambda = grid.lambda)
+
+```
+
+- For ridge, Lasso and for $\alpha = .2, ,.4 ,.6$ plot the cross-validated (6 fold) MSE versus lambda as well as your optimal value of $lambda$ for ridge, Lasso and for $\alpha = .2, ,.4 ,.6$
+
+```{r}
+cv.out.lasso <- cv.glmnet(train.mat, Y.train, alpha = 1, nfolds = 6)
+plot(cv.out.lasso)
+
+bestlam.lasso <- cv.out$lambda.min
+bestlam.lasso
+
+
+cv.out.ridge <- cv.glmnet(train.mat, Y.train, alpha = 0, nfolds = 6)
+plot(cv.out.ridge)
+
+bestlam.ridge <- cv.out$lambda.min
+bestlam.ridge
+
+cv.out.en1 <- cv.glmnet(train.mat, Y.train, alpha = .1, nfolds = 6)
+plot(cv.out.en1)
+
+bestlam.en1 <- cv.out$lambda.min
+bestlam.en1
+
+cv.out.en2 <- cv.glmnet(train.mat, Y.train, alpha = .2, nfolds = 6)
+plot(cv.out.en2)
+
+bestlam.en2 <- cv.out$lambda.min
+bestlam.en2
+
+cv.out.en3 <- cv.glmnet(train.mat, Y.train, alpha = .3, nfolds = 6)
+plot(cv.out.en3)
+
+bestlam.en3 <- cv.out$lambda.min
+bestlam.en3
+
+cv.out.en4 <- cv.glmnet(train.mat, Y.train, alpha = .4, nfolds = 6)
+plot(cv.out.en4)
+
+bestlam.en4 <- cv.out$lambda.min
+bestlam.en4
+
+cv.out.en5 <- cv.glmnet(train.mat, Y.train, alpha = .5, nfolds = 6)
+plot(cv.out.en5)
+
+bestlam.en5 <- cv.out$lambda.min
+bestlam.en5
+
+cv.out.en6 <- cv.glmnet(train.mat, Y.train, alpha = .6, nfolds = 6)
+plot(cv.out.en6)
+
+bestlam.en6 <- cv.out$lambda.min
+bestlam.en6
+
+cv.out.en7 <- cv.glmnet(train.mat, Y.train, alpha = .7, nfolds = 6)
+plot(cv.out.en7)
+
+bestlam.en7 <- cv.out$lambda.min
+bestlam.en7
+
+cv.out.en8 <- cv.glmnet(train.mat, Y.train, alpha = .8, nfolds = 6)
+plot(cv.out.en8)
+
+bestlam.en8 <- cv.out$lambda.min
+bestlam.en8
+
+cv.out.en9 <- cv.glmnet(train.mat, Y.train, alpha = .9, nfolds = 6)
+plot(cv.out.en9)
+
+bestlam.en9 <- cv.out$lambda.min
+bestlam.en9
+```
+
+- The number of non-zero regression coeffecients for each of the above techniques. 
+```{r}
+library(coefplot)
+extract.coef(cv.out.lasso)
+extract.coef(cv.out.en1)
+extract.coef(cv.out.en2)
+extract.coef(cv.out.en3)
+extract.coef(cv.out.en4)
+extract.coef(cv.out.en5)
+extract.coef(cv.out.en6)
+extract.coef(cv.out.en7)
+extract.coef(cv.out.en8)
+extract.coef(cv.out.en9)
+
+```
+
+
+(c) (2 pt) Simulate an independent {\bf test} data set of the same type as above (response $y$ and $2000$ features per subject) with $n=10,000$. Use seed = 1112. 
+
+```{r}
+set.seed(1112)
+X = matrix(rnorm(10000*2000),10000,2000)
+test = sample(1:nrow(X), nrow(X) / 1)
+  
+beta = c(rep(1,1000), rep(0, 1000))
+epsilon = rnorm(1000)
+
+Y = X*beta + epsilon
+
+X.test = X[test,]
+Y.test = Y[test]
+
+
+test.mat = model.matrix(Y.test ~ X.test)
+```
+
+(d) (2 pt) Using the models you obtained above using the training data set and the 11 models above, compute average test error for each of the 11 models. Which one is the "best" model? 
+
+
+```{r}
+pred.ridge <- predict(ridge.model.train, s = bestlam.ridge, newx = test.mat)
+ridge.MSPE = mean((pred.ridge - Y.test)^2)
+ridge.MSPE
+
+pred.lasso <- predict(lasso.model.train, s = bestlam.lasso, newx = test.mat)
+lasso.MSPE = mean((pred.lasso -Y.test)^2)
+lasso.MSPE
+
+pred.en1 <- predict(en.model.train1, s = bestlam.en1, newx = test.mat)
+en1.MSPE = mean((pred.en1 - Y.test)^2)
+en1.MSPE
+
+pred.en2 <- predict(en.model.train2, s = bestlam.en2, newx = test.mat)
+en2.MSPE = mean((pred.en2 - Y.test)^2)
+en2.MSPE
+
+pred.en3 <- predict(en.model.train3, s = bestlam.en3, newx = test.mat)
+en3.MSPE = mean((pred.en3 - Y.test)^2)
+en3.MSPE
+
+pred.en4 <- predict(en.model.train4, s = bestlam.en4, newx = test.mat)
+en4.MSPE = mean((pred.en4 - Y.test)^2)
+en4.MSPE
+
+pred.en5 <- predict(en.model.train5, s = bestlam.en5, newx = test.mat)
+en5.MSPE = mean((pred.en5 - Y.test)^2)
+en5.MSPE
+
+pred.en6 <- predict(en.model.train6, s = bestlam.en6, newx = test.mat)
+en6.MSPE = mean((pred.en6 - Y.test)^2)
+en6.MSPE
+
+pred.en7 <- predict(en.model.train7, s = bestlam.en7, newx = test.mat)
+en7.MSPE = mean((pred.en7 - Y.test)^2)
+en7.MSPE
+
+pred.en8 <- predict(en.model.train8, s = bestlam.en8, newx = test.mat)
+en8.MSPE = mean((pred.en8 - Y.test)^2)
+en8.MSPE
+
+pred.en9 <- predict(en.model.train9, s = bestlam.en9, newx = test.mat)
+en9.MSPE = mean((pred.en9 - Y.test)^2)
+en9.MSPE
+```
+
+```
+For this model, Elastic net with alpha of .7 is best based on MSPE.
+```
+
+```{r}
+a = matrix(0, 2, 2)
+a[1,1] = 4
+a[2,2] = 4
+svd(t(a)*a)
+```

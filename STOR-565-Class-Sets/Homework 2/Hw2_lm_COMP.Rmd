@@ -1,0 +1,289 @@
+---
+title: "STOR 565 Fall 2019 Homework 2"
+author: "Hunter Finger"
+output:
+  pdf_document: default
+  html_document: default
+header-includes: \usepackage{amsgen,amsmath,amstext,amsbsy,amsopn,amssymb,mathabx,amsthm,bm,bbm}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+## install.packages("ISLR")   # if you don't have this package, run it
+library("ISLR")
+library(MASS)
+```
+\theoremstyle{definition}
+\newtheorem*{hint}{Hint}
+
+\theoremstyle{remark}
+\newtheorem*{rmk}{Remark}
+
+*Remark.* This homework aims to help you go through the necessary preliminary from linear regression. Credits for **Theoretical Part** and **Computational Part** are in total 100 pts. If you receive more points that 100 (say via attempting extra credit/optional questions) then your score will be rounded to 100.  **If you are aiming to get full points, it is your duty to make sure you have attempted enough problems to get 100 pts**.  For **Computational Part**, please complete your answer in the **RMarkdown** file and summit your printed PDF (or doc or html) homework created by it.
+
+## Computational Part
+
+1. (*21 pt*) Consider the dataset "Boston" in predicting the crime rate at Boston with associated covariates.
+```{r Boston}
+head(Boston)
+```
+Suppose you would like to predict the crime rate with explantory variables
+
+* `medv`  - Median value of owner-occupied homes
+* `dis`   - Weighted mean of distances to employement centers
+* `indus` - Proportion of non-retail business acres
+
+Run the linear model using the code below. You can do so either by copying and pasting the code into the R console, or by clicking the green arrow in the code 'chunk' (grey box where the code is written).
+```{r lm}
+mod1 <- lm(crim ~ medv + dis + indus, data = Boston)
+summary(mod1)
+```
+Answer the following questions.
+
+(i) What do the following quantities that appear in the above output mean in the linear model? Provide a breif description.
+    + `t value` and `Pr(>|t|)` of `medv`
+    
+    **Answer:** The t value is the output, or how many standard deviations away from 0, from the t-test for the estimate of medv in the model. The t-test is given by the estimate of the variable divided by the std.error of the variable. The Pr(>|t|) is the corresponding p-value from the t-test. The p-value is the probability that the values for the weights seen are a result of chance.
+
+    ***
+    + `Multiple R-squared`
+    
+    **Answer:** Multiple R Squared is how well the model correlates to the data. A high value here means that you are doing a good job predicting on the training set. The problem with this is you can overfit the data and get a very high value, but be unable to predict any future data with the model. 
+    
+    ***
+    + `F-statistic`, `DF` and corresponding `p-value`
+
+    **Answer:** The F-statistic is the value given from the ANOVA test in R. If the F-statistic is significantly larger than 0, it is thought of as a model that accurately shows the relationship between the predictors and response variable. DF is the degrees of freedom used in the F-test. The p-value is the sign of significance for the model. If the p-value seen here is very close to 0, the model is statistically signiificantand the null hypothesis can be rejected.
+    
+    ***
+    
+
+(ii) Are the following sentences True of False? Briefly justify your answer.
+    + `indus` is not a significant predictor of crim at the 0.1 level.
+    
+    **Answer:** True. The significance value is greater than .05, so the variable can be removed.
+    
+    ***
+    + `Multiple R-squared` is preferred to `Adjusted R-squared` as it takes into account all the variables.
+    
+    **Answer:** False. Multiple R-squared increases when more variables are included in the model, regardless of the significance of the variable. Adjusted R-squared takes into account the amount of variables used. 
+
+    ***    
+    + `medv` has a negative effect on the response.
+    
+    **Answer:** True. The values associated with the medv variable are all negative.
+    
+    ***
+    + Our model residuals appear to be normally distributed.
+    
+    \begin{hint}
+      You need to access to the model residuals in justifying the last sentence. The following commands might help.
+    \end{hint}
+    ```{r, eval=FALSE}
+    # Obtain the residuals
+    res1 <- residuals(mod1)
+    
+    # Normal QQ-plot of residuals
+    plot(mod1, 2)
+    
+    # Conduct a Normality test via Shapiro-Wilk and Kolmogorov-Smirnov test
+    shapiro.test(res1)
+    ks.test(res1, "pnorm")
+    ```
+
+    **Answer:** False. Some values fall well outside of the range of the regression line. That makes the plot non-normal. 
+
+    ***
+ 
+ 
+2. (*25 pt*) For this exercise, we will use a dataset with summary information about American colleges and universities in 2013. The following code chunk retrieves it directly from the website, saving you from having to download it. The data is saved in the object called `amcoll`.
+
+```{r}
+amcoll <- read.csv('College.csv')
+```
+
+Suppose that we are curious about what factors at a university play an important role in the room and board each semester (column `Room.Board`). Answer the following questions.
+ 
+(a) Based on some research into the area, you believe that the five most important predictors for the room and board amount are 
+
+\begin{itemize} 
+		\item the number of students who accepted admission {\it Accept}
+		\item the number of students who are currently enrolled {\it Enroll}
+		\item the out of state tuition for a semester {\it Outstate}
+		\item the average cost of books per year {\it Books}
+		\item the graduation rate of the students {\it Grad.Rate}
+	\end{itemize}
+ 
+ 	Plot a pairwise scatterplot of these variables along with the room and board cost, and comment on any trends. If you don't know how to plot such a scatterplot, see for example:
+ 	
+- [http://www.sthda.com/english/wiki/scatter-plot-matrices-r-base-graphs](http://www.sthda.com/english/wiki/scatter-plot-matrices-r-base-graphs)
+ 	
+- [http://dept.stat.lsa.umich.edu/~jerrick/courses/stat701/notes/ggplot2.html](http://dept.stat.lsa.umich.edu/~jerrick/courses/stat701/notes/ggplot2.html)
+
+ 	 Include your pairwise scatter plot as part of what you turn in. 
+ 	
+ 	
+```{r, eval=T}
+#install.packages(dplyr)
+library(dplyr)
+amcoll1 = amcoll %>% select(Accept, Enroll, Outstate, Books, Grad.Rate, Room.Board)
+pairs(amcoll1[,1:6])
+```
+
+ 	
+ 	Room and board seems to have a positive correlation with Outstate and Grad.Rate. Books and Room.Board also seem to be related in some way. Enroll and Accept seem to have a mostly uncoorelated relationship with Room.Board.
+ 	
+(b) Run  a linear model of Room.Board on the 5 features above. Suppose we decide that $.01$ is our level of significance (so p-values have to be below $.01$ to count as significant). Discuss the findings of your linear model. In particular you should find that one of the features is **not** significant. 
+ 	
+```{r, eval=T}
+rmod = lm(Room.Board ~ Accept + Enroll + Outstate + Books + Grad.Rate, data = amcoll)
+summary(rmod)
+```
+
+**Answer:** All of the variables except for Grad.Rate are significant to the model. All other variables meet the specification of significance. The variables all seem to have very low coeffienents so a change in the variables has to be large to truly affect the outcome. 
+
+
+(c) Write a function `kfold.cv.lm()` which performs the following. You can either write this from scracth or use any standard package in R or see the book for example code etc. 
+
+	**Input Arguments**: 
+	 
+		- k: integer number of disjoint sets
+		- seed: numeric value to set random number generator seed for reproducability
+		- X: $n \times p$ design matrix
+		- y: $n \times 1$ numeric response
+		- which.betas: $p \times 1$ logical specifying which predictors to be included in a regression
+	
+
+**Output**: 
+
+*Avg.MSPE* (average training error over your folds = $\frac{1}{10}\sum_{\mbox{fold } i  } \mbox{ prediction error using model obtained from remaining folds}$), 
+
+*Avg.MSE* $\frac{1}{10}\sum_{\mbox{fold } i  } \mbox{ average training error using model obtained from remaining folds}$)
+
+
+**Description**: Function performs k-fold cross-validation on the linear regression model of $y$ on $X$ for predictors *which.betas*. Returns both the average MSE of the training data and the average MSPE of the test data.
+
+
+```{r, eval=T}
+library(modelr)
+kfold.cv.lm = function(k, seed, x, y, which.betas){
+  set.seed(seed)
+  data = amcoll %>% crossv_kfold(k)
+  RBmod = lm(y ~ which.betas, data = data)
+  MSE = mean(RBmod$residuals^2)/10
+  MSPE = mean((y - predict.lm(RBmod)) ^ 2)/10
+  returnmatrx = matrix(NA, 1, 2)
+  returnmatrx = cbind(MSE, MSPE)
+  returnmatrx = data.frame(returnmatrx)
+  returnmatrx
+}
+x = as.matrix(amcoll1)
+y = as.matrix(amcoll$Room.Board)
+which.betas = as.matrix((amcoll1[,1:5]))
+kfold.cv.lm(10,216,x,y,which.betas)
+which.betas = as.matrix(amcoll1[,1:4])
+kfold.cv.lm(10,216,x,y,which.betas)
+```
+
+
+
+(d) Use your function `kfold.cv.lm()` to perform 10 folder cross validation on the college data for the following two models: 
+
+- the full model on the 5 features above; 
+- the model where you leave out the feature you found to be insgnificant in (b).
+
+Which of the two is a ``better'' model and why?
+
+**Answer:** The model that includes the Grad.Rate variable is better. Even though we ruled it insignificant based on the summary of rmod, the variable gives information to the model that it uses to make itself better. We do not have to worry about overfitting the data since cross validation chooses the best model based on the errors from all of the fold. Since we used kfold cross validation to train the model, the two errors are the same.
+
+***
+
+
+
+
+
+    
+3. (*25 pt*, Textbook Exercises 3.10) This question should be answered using the `Carseats` data set.
+
+```{r}
+head(Carseats)
+```
+
+(a) Fit a multiple regression model to predict `Sales` using `Price`, `Urban`, and `US`. Then, display a summary of the linear model using the `summary` function.
+
+
+```{r, eval=T}
+mod1 = lm(Sales ~ Price + Urban + US, data = Carseats)
+summary(mod1)
+```
+
+
+***
+
+(b) Write a one- or two-sentence interpretation of each coefficient in the model. Be careful: some of the variables in the model are qualitative!
+
+**Answer:** US and Urban are two qualitative variables and Price is a quantitative variable. The price has a negative relationship with the sales. When the price rises by a dollar, the sales decrease by 54.45 units. This relationship is similar in the Urban variable. If you have an urban store location, the store will sell 21.91 fewer units. If the store is located in the United States, the store sells 1200 more units.
+
+***
+
+(c) Based on the output in part (a): For which of the predictors can you reject the null hypothesis $H_0 : \beta_j = 0$?
+
+**Answer:** US and Price are the two predictors that we can reject the null hypothesis.
+
+***
+
+(d) On the basis of your response to the previous question, a model with fewer predictors, using only the predictors for which there is evidence of association with the outcome. Display a summary of the linear model using the `summary` function.
+
+
+```{r, eval=T}
+mod2 = lm(Sales ~ US+Price, data = Carseats)
+summary(mod2)
+```
+
+
+***
+
+(e) In a few sentences: How well do the models in (a) and (d) fit the data? Justify your response with information from the outputs of part (a) and (d).
+
+**Answer:** The model in mod2 has a higher adjusted r-squared meaning that it better fits the data. 23.54% of the variablity in the data is explained by our mod2 versus 23.35% in mod1. Although a slight improvement, it shows how adjusted r-squared is a better indicator of multiple regression correlation. 
+
+***
+
+
+
+
+
+
+
+
+
+4. (*14 pt Optional*) Note: this question is optinal and if you do want to do it, you will need to do the heavy lifting in terms of finding the data, cleaning the data etc. We will not be able to help you too much with respect to the above data "carpentry" issues. 
+
+Search online for a dataset that **you are interested in** where you think you can apply linear regression (i.e. your data has a continuous response and a bunch of real valued features).  Data sets from the book (ISLR) website are not allowed and more importantly try to find something that makes you curious to find the answers. 
+
+(a) Include a link and brief description of the data and the kinds of questions you are interested in exploring. 
+The data I am looking at is the NFL Play-by-Play data from the 2009-2018 seasons. The link is [https://www.kaggle.com/maxhorowitz/nflplaybyplay2009to2016/discussion/39200#latest-393454] (https://www.kaggle.com/maxhorowitz/nflplaybyplay2009to2016/discussion/39200#latest-393454).
+I am interested in seeing if the play call can be predicted by down and distance. I am also curious if the total points scored can be predicted with the playcalling data. Can the total yards on the play be predicted by the play type?
+
+(b) Plot a pairwise scatter plot between the response and some (at least 2) of the features. 
+
+
+```{r, eval=T}
+NFL = read.csv("NFL_PbP.csv")
+```
+
+```{r}
+NFL1 = NFL %>% select(play_type, down, ydstogo, ydsnet)
+pairs(NFL1[,1:4])
+```
+
+(c) Run a linear model to learn the relationship between the features and the response and extract information from the lm function (what variables seem significant and what do not)? 
+
+```{r, eval=T}
+nflmod = lm(ydsnet ~ down + ydstogo+play_type, data = NFL)
+summary(nflmod)
+```
+
+Explain in words (e.g. to someone who has no math or stat background) your findings. 
+
+**Answer:** Being a football fan, I thought it would be interesting to predict the yards gained on any given play. The main thing to look at with the model is the multiple r-squared value. This number is a the percentage of the variation in the yards gained per play that is explained by the down, distance, and play type. 8.66% of the variation in the net yardage is explained by those variables. This is a very small amount and likely would lead to poor predictions for future yardage on a particular play. 

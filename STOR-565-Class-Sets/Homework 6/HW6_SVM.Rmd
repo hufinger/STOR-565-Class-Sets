@@ -1,0 +1,205 @@
+---
+title: "STOR 565 Fall 2019 Homework 6"
+author: "Hunter Finger"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: \textbf{Due on 01/31/2018 in Class}
+header-includes: \usepackage{amsgen,amsmath,amstext,amsbsy,amsopn,amssymb,mathabx,amsthm,bm,bbm}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(dplyr)
+library(e1071)  # For svm
+library(stringr)
+library(ggplot2)
+
+set.seed(1305)
+```
+
+*Remark.* Credits for **Theoretical Part** and **Computational Part** are in total 100 pt. For **Computational Part**, please complete your answer in the **RMarkdown** file and summit your printed PDF homework created by it.
+
+##Comment
+If dplyr and MASS are both loaded, you might need to specify `dplyr::select` to specify that you want the dplyr version of the `select` function.
+
+## Computational Part
+
+###About the data: Tree leaf images
+
+We will attempt to identify trees based on image data of their leaves. This is a tough problem, though apps such as iNaturalist now do a pretty good job identifying plants from images taken on your phone.
+
+The data set is from here: https://www.kaggle.com/c/leaf-classification/data
+
+Images have been pre-processed, so the dataset inlcudes vectors for margin, shape and texture attributes for each of almost 1000 images. We will focus on the shape attributes, which describe the contours of the leaf in the image.
+
+###A helpful demonstration for SVM
+
+http://uc-r.github.io/svm
+
+###Q1
+###(a) (3 points)
+
+Load the `leaf_train` dataset. 
+
+(i) Subset the columns to include only `id`, `species` and the `shape` variables, which is most easily done using the dplyr `select` function and the sub-function `contains`. There should be 66 variables in all.
+```{r}
+leaf_train = read.csv("leaf_train.csv", stringsAsFactors = F)
+leaf = select(leaf_train, id, species, contains("shape"))
+```
+
+(ii) Then create a new variable `genus` by extracting the first part of the species name. You can use the following code, assuming your data objects are named in a compatible way. You will probably want to load the data with `stringsAsFactors` as false. 
+
+(iii) Lastly, convert the genus variable to a factor.
+
+```{r, eval=T}
+leaf$genus <- str_split(leaf$species, "_", simplify = TRUE)[, 1]
+leaf$genus = as.factor(leaf$genus)
+```
+
+(iv) Display your resulting data frame and the result of `summary(leaf$genus)`, which should give the number of observations of each genus. **Display only the id, species and first two species variables in your output, and only five rows of the data, eg by using the head function.**
+```{r}
+head(leaf[,1:4], n = 5)
+summary(leaf$genus)
+
+```
+
+
+(v) Randomly split your data into test and training sets. About 35 percent of the data should be in the test set. Display a summary of genus labels in the training set.
+
+**Note: In the rare event that one class in the training data is not represented, you may reduce the test set percentage to 30 percent and resample.**
+
+```{r}
+train = sample(1:dim(leaf)[1], dim(leaf)[1]/100*65)
+test = -train
+leaf_train = leaf[train,]
+leaf_test = leaf[test,]
+```
+
+##(b) (2 points) 
+
+For the training data:
+
+(i) Make a scatter plot of `shape1` by `shape50`, with some form of genus label. `ggplot2` is probably the best package for this, though you do not need to make the plot fancier than required to display the information above.
+```{r}
+ggplot(leaf_train, aes(x = shape1, y = shape50, color = genus)) + geom_point()
+```
+
+(ii) Write two to three sentences discussing some possible implications of this plot for the SVM model.
+
+**ANSWER**
+Having 34 classes in which the model has to differentiate might be difficult. In this example it would be fairly simple to create a hyperplane that seperated two classes, but we have 34 classes with many shapes. The model with do what we can simply see here, but for all features and all classes.
+
+
+##(c) (15 points) 
+
+For the training data:
+
+(i) Write a function, or use an available one, to choose the cost parameter for the SVM model on this training data with **linear kernel.** Use **shape variables as predictors only, genus as response**. 
+
+Use **5-fold cross validation.** Use the array of costs provided in the code below.
+
+**If you use a built-in function, you must state specifically how the best parameter value is chosen, for example by giving the error function minimized. Simply stating `classification error` is insufficient and will receive no points. You must state what that means. ** If using your own function, you may use any error function you like that is justified for classification problems.
+
+See the demo linked above for help.
+
+**This might take some time to run. Do not knit your file at the last minute before the assignment is due.**
+
+(ii) Report the best value of cost chosen, and plot the errors by the cost values.
+
+(iii) Write two or three sentences discussing some basic implications of your answer in (ii), using the concepts from class. Lecture 7 will be helpful.
+
+```{r}
+cost_out <- seq(from = 0.1, to =5.1, by = 1)
+missed = rep(NA, length(cost_out))
+for(i in 1:length(cost_out)){
+  svm.mod = svm(formula = genus~., data = select(leaf_train, -c(id, species)), kernel = "linear", cost = cost_out[i], fold = 5)
+  missed[i] = (sum(svm.mod$fitted != leaf_train$genus))/nrow(leaf_train)
+}
+
+errors = data.frame(cbind(cost_out, missed))
+```
+
+
+```{r}
+ggplot(errors, aes(x = cost_out, y = missed)) + geom_line()
+```
+
+**ANSWER**
+5.1 is the best cost value for the model. It has the lowest MSE of the 5 options. The value of c is accounting for how much noise or values are on the wrong side of the plane. As we saw in our earlier plot it is non trivial to accomplish this so having a higher c will help us make more accurate predictions on our messy data.
+
+##(d) (15 points) 
+
+(i) Run the SVM model on the **training data** with **linear kernel** and the cost determined in part (c). If you are unable to do part (c), use a cost of 1, the default. Report a summary of the fitted class label counts.
+
+(ii) Create a classification plot from the model, plotting the variables `shape50` by `shape1`. See `?plot.svm`. In your plot statement, use the argument `xlim = c(0, 0.0012), ylim = c(0, 0.0012)`.
+
+See the linked demo for an explanation of the plot. Write two sentences explaining what you see **using concepts and terminology from class.**
+
+(iii) Predict outcomes based on your model in (i) for the test data. Display a confusion matrix and compute sensitivity, specificity statistics. You may use the function demonstrated in class.
+
+**Warning: the confusion matrix will be awkward to display. Don't worry about it so much. The sensitivity and specificity are good summaries.**
+
+```{r}
+svm.mod = svm(formula = genus~., data = select(leaf_train, -c(id, species)), kernel = "linear", cost =5.1, fold = 5)
+
+plot(svm.mod, data = select(leaf_train, -c(id, species)), shape50~shape1, xlim = c(0, 0.0012), ylim = c(0, 0.0012))
+
+svm.pred = predict(svm.mod, newdata = leaf_test)
+library(caret)
+confusion = confusionMatrix(leaf_test$genus, svm.pred)
+confusion
+```
+
+**PART 2 ANSWER**
+We see shades of purple on this plot representing the different genus' from the model. There are no straight lines which is an indicator of decision gradients. It is more likely to be predicted a certain genus in the dark purple, but it is not a guarantee that the genus will be what is predicted.
+
+##(e) (15 points) 
+This question will use a non-linear kernel for the SVM and compare results.
+
+(i) Modify your function in part (c) to find the optimal cost value for the SVM on the **training data** with **radial kernel** with gamma parameter 0.55. Use the same cost range. Report the optimal cost.
+
+(ii) Run the radial SVM model with these optimal parameters on the training data.
+
+(iii) Repeat part (d)(iii) but for the radial SVM model instead of the linear one.
+
+(iv) Discuss briefly your results in (e)(iii) as compared to (d)(iii) **using concepts discussed in class**.
+
+```{r, eval = FALSE, echo=FALSE}
+# gamma fixed for simplicity, but this is how it was found.
+
+pram2 <- tune(svm, genus ~., data = select(leaf_train, genus, contains("shape")), kernel = "radial", 
+             ranges = list(cost = cost_out, gamma = seq(from = 0.05, to = 2, by = .5)), 
+             tunecontrol = tune.control(cross = 5))
+```
+
+
+```{r}
+cost_out <- seq(from = 0.1, to =5.1, by = 1)
+missed = rep(NA, length(cost_out))
+for(i in 1:length(cost_out)){
+  svm.mod = svm(formula = genus~., data = select(leaf_train, -c(id, species)), kernel = "radial", cost = cost_out[i], fold = 5, gamma = .55)
+  missed[i] = (sum(svm.mod$fitted != leaf_train$genus))/nrow(leaf_train)
+}
+
+data.frame(cbind(cost_out, missed))
+```
+
+**PART 3 ANSWER**
+c has a best value of 4.1 and 5.1. For continuity I chose to use c as 5.1 in this model. 
+
+
+```{r}
+svm.mod = svm(formula = genus~., data = select(leaf_train, -c(id, species)), kernel = "radial", cost = 5.1, fold = 5, gamma = .55)
+
+plot(svm.mod, data = select(leaf_train, -c(id, species)), shape50~shape1, xlim = c(0, 0.0012), ylim = c(0, 0.0012))
+
+svm.pred = predict(svm.mod, newdata = leaf_test)
+library(caret)
+confusion = confusionMatrix(leaf_test$genus, svm.pred)
+confusion
+```
+
+**PART 4 ANSWER** 
+The non-linear SVM model has better accuracy (.61 vs .47). This can also be seen with better specificity and sensitivity scores.

@@ -1,0 +1,445 @@
+---
+title: "STOR 565 Fall 2019 Homework 5"
+author: "Hunter Finger"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+header-includes: \usepackage{amsgen,amsmath,amstext,amsbsy,amsopn,amssymb,mathabx,amsthm,bm,bbm}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if(!require(ISLR)) { install.packages("ISLR", repos = "http://cran.us.r-project.org"); library("ISLR") }
+if(!require(class)) { install.packages("class", repos = "http://cran.us.r-project.org"); library("class") }
+if(!require(e1071)) { install.packages("e1071", repos = "http://cran.us.r-project.org"); library("e1071") }
+if(!require(splines)) { install.packages("splines", repos = "http://cran.us.r-project.org"); library("splines") }
+```
+\theoremstyle{definition}
+\newtheorem*{hint}{Hint}
+
+\theoremstyle{remark}
+\newtheorem*{rmk}{Remark}
+
+*Remark.* Credits for **Theoretical Part** and **Computational Part** are in total *100 pt* (40 pt for theoretical and 60pt for computational) please complete your computational report below in the **RMarkdown** file and submit your printed PDF homework created by it. 
+
+## Computational Part
+
+
+# Question 1 
+
+ **You are supposed to finish the Computational Part in a readable report manner for each dataset-based analysis problem. Other than what you are asked to do, you can decide any details on your own discretion.** Also goto R demonstrations in the Lecture 6 folder on Sakai. There you will find a working example for LDA, QDA and k-nn for the titanic data as well as a much more extensive demonstartion on k-nn in the folder under classification-knn in the same folder in Sakai. 
+ 
+ You may need some of these packages:
+ 
+```{r}
+library(MASS)
+library(class)
+library(dplyr)
+library(tidyverse)
+```
+ 
+
+
+In particular, the MASS package for doing LDA, QDA and the class package for doing K-nn. 
+
+The following data set is coming from a Kaggle competition that came out on November 12, 2015. Here is the description from the competition:
+
+*Time magazine noted Mashable as one of the 25 best blogs in 2009, and described it as a "one stop shop" for social media. As of November 2015, [Mashable] had over 6,000,000 Twitter followers and over 3,200,000 fans on Facebook. In this problem, you'll use data from thousands of articles published by Mashable in a period of two years to see which variables predict the popularity of an article*.
+
+**Load and read more about the data**
+
+- Load the data *OnlineNewsPopularityTraining.csv*, which contains a large portion of the data set from the above competition.
+
+```{r}
+NewsPopTrain = read.csv("OnlineNewsPopularityTraining.csv")
+NewsPopTest = read.csv("OnlineNewsPopularityTest.csv")
+```
+
+- Read the variable descriptions for the variables at this website: [UCI website](https://archive.ics.uci.edu/ml/datasets/Online+News+Popularity#)
+
+- A binary label has been added to the data set `popular`, which specifies whether or not each website is considered a popular website (0 for popular and 1 for not popular). 
+
+- `popular` was created by assigning 1 to rows with `shares` values greater than 3300, and zero otherwise.
+
+
+**Prepare the data**
+
+- Remove the variables *shares*, *url* and  *timedelta* from the dataset.
+```{r}
+NewsPopTrain = dplyr::select(NewsPopTrain, -c(shares, url, timedelta))
+NewsPopTest = dplyr::select(NewsPopTest, -c(shares, url, timedelta))
+```
+
+
+**Questions**
+
+(a) (10 points) The aim of this computational exercise is to prepare a classifier to predict whether or not a new website will be popular, i.e. classification by the `popular` variable in the dataset. You will do so using
+
+- LDA
+- QDA
+- K-nearest neighbors
+
+For each of the methods, 
+
+1) carefully describe how you choose any thresholds or tuning parameters. 
+
+2) list the predictors you would remove, if any, before fitting your models.
+
+**You must justify your answers by specifically naming concepts studied in this course.** You also might want to justify your choices with summaries or plots of the data. Please do not print large amounts of data in the output.
+
+I am being intentionally vague here because I want to see how you would handle such a data set in practice. All I ask is that you give proper justification for whatever you are doing. For example: the data contains indicator variables for different days of the week (weekday_is_monday etc). When doing LDA **I would remove these sorts of variables** as LDA inherently assumes that the features are continuous (and have a normal distribution).
+
+```{r}
+removeLDAissue = function(data){
+  #remove variables that are discrete, binary, or non-normal.
+  out = data %>% dplyr::select(-c(contains("week"))) %>% dplyr::select(-c(contains("data"))) %>% dplyr::select(-c(contains("num_"))) %>% dplyr::select(-c(contains("LDA")))  %>% dplyr::select(-c(contains("title_sentiment"))) %>% dplyr::select(-c("kw_avg_min")) %>% dplyr::select(-c(contains("kw_max_avg")))  %>% dplyr::select(-c(contains("kw_max_max")))  %>% dplyr::select(-c(contains("kw_max_min")))  %>% dplyr::select(-c(contains("title_subjectivity"))) %>% dplyr::select(-c(contains("reference_avg"))) %>% dplyr::select(-c(contains("reference_max")))  %>% dplyr::select(-c(contains("title_subjectivity"))) %>% dplyr::select(-c(contains("n_non")))  %>% dplyr::select(-c(kw_min_min, kw_min_max, self_reference_min_shares, n_tokens_content, n_tokens_title, max_positive_polarity, min_positive_polarity, min_negative_polarity, max_negative_polarity, kw_min_avg))
+  return(out)
+}
+
+train = removeLDAissue(NewsPopTrain)
+test = removeLDAissue(NewsPopTest)
+confusion <- function(yhat, y, quietly = FALSE){
+  
+  if(!quietly)
+    message("yhat is the vector of predicted outcomes, possibly a factor.\n
+          Sensitivity = (first level predicted) / (first level actual) \n
+          Specificity = (second level predicted) / (second level actual)")
+  
+  if(!is.factor(y) & is.factor(yhat))
+    y <- as.factor(y)
+  
+  if(!all.equal(levels(yhat), levels(y)))
+    stop("Factor levels of yhat and y do not match.")
+  
+  confusion_mat <- table(yhat, y, deparse.level = 2)
+  stats <- data.frame(sensitivity = confusion_mat[1, 1]/sum(confusion_mat[, 1]),
+                                 specificity = confusion_mat[2, 2]/sum(confusion_mat[, 2]))
+  
+  return(list(confusion_mat = confusion_mat, stats = stats))
+}
+
+```
+
+*I removed all variables except for 12 variables that appeared normal to me. These varaibles can be seen in the code chunk below. All other variables were either discrete, skewed, or binary which was the reason for their removal.*
+
+```{r}
+names(train)
+```
+
+
+(b) (10 points)For **each of the methods** listed in (a):
+
+1) Fit a model to predict `popular` class labels, consistent with your answer in (a). 
+
+2) Briefly discuss your results.
+
+**You must show summary output of this model, along with plots and other documentation.**
+
+```{r}
+lda.mod = lda(popular ~ ., data = train)
+lda.mod
+qda.mod = qda(popular~., data = train)
+qda.mod
+
+knn_models <- list()
+ktrain <- dplyr::select(train, -popular)
+ktest <- dplyr::select(test, -popular)
+
+for (i in 1:50){
+  
+  knn_models[[i]] <- knn(ktrain, ktest, cl = train$popular, k = i)
+  
+}
+
+knn_results <- lapply(knn_models, FUN = function(x){
+  
+  return(confusion(x, test$popular, quietly = TRUE)$stats)
+  
+  })
+
+knn_results <- bind_rows(knn_results)
+knn_results$K <- 1:50
+
+ggplot(knn_results, aes(x = specificity, y = sensitivity, label = K)) + geom_point() + geom_text(hjust = 2)
+```
+
+
+(c) (10 points) Download the test data *OnlineNewsPopularityTest.csv*. Predict `popular` class labels using each of the models in (b). Then:
+
+
+```{r}
+lda.pred = predict(lda.mod, newdata = test)
+lda.class = lda.pred$class
+table(lda.class, test$popular)
+mean(lda.class == test$popular)
+lda.pred$posterior[1:20, 1]
+lda.class[1:20]
+confusion(yhat = lda.pred$class, y = test$popular,  quietly = T)
+
+qda.pred = predict(qda.mod, newdata = test)
+qda.class = qda.pred$class
+table(qda.class, test$popular)
+mean(qda.class == test$popular)
+qda.pred$posterior[1:20, 1]
+qda.class[1:20]
+confusion(yhat = qda.pred$class, y = test$popular,  quietly = T)
+
+knn = knn(train = ktrain, test = ktest, cl = train$popular, k = 50)
+table(knn, test$popular)
+mean(knn == test$popular)
+confusion(yhat = knn, y = test$popular, quietly = T)
+```
+
+
+
+c.1) Discuss the performance of each method using assessment measures such as MSPE, sensitivity, and specificity (see slide 68-69 for definitions of these objects; here popularity (class label 1) counts as "positives" and not popularity (class label 0) counts as negatives). 
+
+*KNN and LDA are the two most accurate classifiers. KNN is has an accuracy of 79.3% while LDA has an accuracy of 79.1%. QDA was the worst in all catergories so I am going to exclude it from future conversation. LDA has a sensitivity of .994 and specificity of .017. KNN is vastly better with a k selected to be 50 (the largest number in my range which was chosen with time in mind) with sensitivity of .999 and a specificity of .001.*
+
+c.2) Discuss which classifier you prefer and why. 
+
+*If I was aiming for a model that is easier to explain to someone without statistical knowledge or time constraints were a concern, I would chose LDA because of its simplicity and relative performance compared to KNN. However, if the goal was to create the best model possible, I would chose the KNN model but run possible K's until the global solution was found. This would create the best possible model for the data given.*
+
+# Question 2
+
+ You may need the following packages for this problem:
+
+```{r}
+library(MASS) 
+library(mvtnorm) 
+library(ggplot2)
+library(e1071) 
+library(class)
+```
+
+
+The aim is to understand the performance of different classification schemes. 
+
+## Data simulation
+
+(**Important: I have essentially adapted this from Gaston Sanchez's HW. For the data simulation portion, In the Computational zip folder, you will find the corresponding lab which essentially has full running code for part a of this problem. You will need to modify that code as I am asking you to simulate fewer scenarios etc**)
+
+You are going to simulate 2 different sorts of data sets. Each data set has two classes, class 0 and class 1. Further in each scenario you will have 50 points belonging to class 0 and 50 belonging to class 1. 
+
+**Scenario 1**
+
+*Class 0*: 50 points from bivariate normal: 
+
+\[\boldsymbol{\mu}_0 = \begin{pmatrix}
+0\\
+0
+\end{pmatrix}, \qquad \Sigma_0 = \begin{pmatrix}
+1 & 0\\
+0 & 1
+\end{pmatrix}.
+\]
+
+*Class 1*: 50 points from Bivariate normal:
+
+\[\boldsymbol{\mu}_{1} = \begin{pmatrix}
+1\\
+1
+\end{pmatrix}, \qquad \Sigma_1 = \begin{pmatrix}
+1 & 0\\
+0 & 1
+\end{pmatrix}.
+\]
+Note that here we are in the setting where both classes have features that are multivariate normal with same $\Sigma$ but different means. Further the form of $\Sigma$ implies the two features for any individual are independent. 
+
+**Scenario 2**
+
+*Class 0*: 50 points from bivariate normal: 
+
+\[\boldsymbol{\mu}_0 = \begin{pmatrix}
+0\\
+0
+\end{pmatrix}, \qquad \Sigma_0 = \begin{pmatrix}
+1 & -.5\\
+-.5 & 1
+\end{pmatrix}.
+\]
+
+*Class 1*: 50 points from Bivariate normal:
+
+\[\boldsymbol{\mu}_{1} = \begin{pmatrix}
+1\\
+1
+\end{pmatrix}, \qquad \Sigma_1 = \begin{pmatrix}
+1 & 0\\
+0 & 1
+\end{pmatrix}.
+\]
+Note that here we are in the setting where both classes have features that are multivariate normal with different $\Sigma$ and different means. 
+
+
+
+### [a.]  *(10 points)*
+
+**Simluate the 2 datasets above, one from each scenario.** Write a function to find the optimal *k* value by 5-fold cross validation for each dataset, using the test error defined by the average number of misclassified points. The `knn.cv` function in the `class` package **DOES NOT** do this.
+
+**You cannot use another built-in function to do the cross-validation** though of course you will use built in functions to run the knn algorithm.
+
+I suggest you write a general function that is intended for a single dataset, which you can then use repeatedly, rather than trying to do both data sets in one go.
+
+Using code from previous lectures or homework, your function will need to perform the following steps:
+
+
++ Randomly split the data into 5 folds of equal size.
++  For a fixed k,
+    + use `knn` in the `class` package to run the knn model, where the `train` argument is a data frame            of your first 4 folds and `test` is your 5th fold
+    +  compute the classification error (and store it for output)
+    +  repeat the previous two steps, but with the 4th fold as your `test` argument, then the `3rd` etc.
+
++ Repeat the previous step for k = 1, 2, 3, 4, 5.
++ Return a data frame of the average classification error for each k.
+
+
+In your response: **Show the output of running your function on  the two simulated datasets, and state the optimal k value for each.**
+
+```{r}
+data_creation = function(){
+  id <- diag(c(1, 1))
+  df1 <- data.frame(y=factor(rep(c(0, 1), each=50)),
+  rbind(rmvnorm(50, mean=c(0, 0), sigma = id), rmvnorm(50, mean=c(1, 1), sigma = id)))
+  
+  covmat <- matrix(c(1, -0.5, -0.5, 1), nrow=2)
+  df2 <- data.frame(y=factor(rep(c(0, 1), each=50)),
+  rbind(rmvnorm(50, mean=c(0, 0), sigma = covmat), rmvnorm(50, mean=c(1, 1), sigma = id)))
+  list(df1, df2)
+}
+
+knn_cv = function(data){
+  data = data[sample(nrow(data)),]  
+  folds = cut(seq(1,nrow(data)), breaks = 5, labels = F)
+  knn_model <- list()
+  for(i in 1:5){
+    testIDs = which(folds == i, arr.ind = T)
+    test = data[testIDs,]
+    ktest = dplyr::select(test, -y)
+    train = data[-testIDs,]
+    ktrain = dplyr::select(train, -y)
+    knn_model[[i]] <- knn(ktrain, ktest, cl = train$y, k = i)
+    
+    
+  }
+  
+knn_results <- lapply(knn_model, FUN = function(x){
+  
+  return(confusion(x, test$y, quietly = TRUE)$stats)
+  
+  })
+
+knn_results <- bind_rows(knn_results)
+knn_results$K <- 1:5
+
+error = matrix(rep(NA, 1, 5))
+for(i in 1:5){
+testtab = table(knn_model[[i]], test$y)
+  error[i] = (testtab["0", "1"] + testtab["1", "0"])/20
+}
+error
+
+  
+}
+data = data_creation()
+scenario1 = data[[1]]
+scenario2 = data[[2]]
+print("Scenario 1 Error Rate")
+knn_cv(scenario1)
+print("Scenario 2 Error Rate")
+knn_cv(scenario2)
+
+```
+
+*The optimal K for both scenarios is 5.*
+
+### [b.] *(15 points)*
+**First:** write a function to do the following:
+
+1. **Training sets**: Simulate 2 data sets, one from each scenario above. 
+
+2. For each data set, fit LDA, QDA, k-NN with $k = 1$, k-NN with $k$ chosen by the cross validation in part a.
+
+3. **Test set**: Simulate another 2 data sets, one from each scenario above. 
+
+4. Using the 4 classification techniques you have estimated in Scenario 1 (Training set), apply this to the Scenario 1 (Test set) and compute the test error rate (\# of misclassified points in test set/100). Do the same for Scenario 2. 
+
+5. Return a 4 $\times$ 2 matrix of errors (first row consists of test errors for LDA on each of the 2 scenarios, 2nd row QDA test errors etc). 
+
+```{r}
+partb = function(){
+  data = data_creation()
+  scenario1tr = data[[1]]
+  scenario2tr = data[[2]]
+  
+  testdata = data_creation()
+  scenario1te = testdata[[1]]
+  scenario2te = testdata[[2]]
+  ktest1 = dplyr::select(scenario1te, -y)
+  ktest2 = dplyr::select(scenario2te, -y)
+  ktrain1 = dplyr::select(scenario1tr, -y)
+  ktrain2 = dplyr::select(scenario2tr, -y)
+  
+  lda.mod1 = lda(y ~ ., data = scenario1tr)
+  qda.mod1 = qda(y ~ ., data = scenario1tr)
+  knn1_1 = knn(ktrain1, ktest1, cl = scenario1te$y, k = 1)
+  knn5_1 = knn(ktrain1, ktest1, cl = scenario1te$y, k = 5)
+  
+  lda.mod2 = lda(y~., data = scenario2tr)
+  qda.mod2 = qda(y~., data = scenario2tr)
+  
+  knn1_2 = knn(ktrain2, ktest2, cl = scenario2te$y, k = 1)
+  knn5_2 = knn(ktrain2, ktest2, cl = scenario2te$y, k = 5)
+  
+  lda.pred1 = predict(lda.mod1, newdata = scenario1te)
+  lda.pred2 = predict(lda.mod2, newdata = scenario2te)
+  ldatab1 = table(lda.pred1$class, scenario1te$y)
+  ldatab2 = table(lda.pred2$class, scenario2te$y) 
+  error_1 = (ldatab1["0", "1"] + ldatab1["1", "0"])/100
+  error_2 = (ldatab2["0", "1"] + ldatab2["1", "0"])/100
+  
+  
+  qda.pred1 = predict(qda.mod1, newdata = scenario1te)
+  qda.pred2 = predict(qda.mod2, newdata = scenario2te)
+  qdatab1 = table(qda.pred1$class, scenario1te$y)
+  qdatab2 = table(qda.pred2$class, scenario2te$y) 
+  errorqda1 = (qdatab1["0", "1"] + qdatab1["1", "0"])/100
+  errorqda2 = (qdatab2["0", "1"] + qdatab2["1", "0"])/100
+  
+  knn1_1tab = table(knn1_1, scenario1te$y)
+  knn1_2tab = table(knn1_2, scenario2te$y)
+  errorknn1_1 = (knn1_1tab["0", "1"] + knn1_1tab["1", "0"])/100
+  errorknn1_2 = (knn1_2tab["0", "1"] + knn1_2tab["1", "0"])/100
+  
+  knn5_1tab = table(knn5_1, scenario1te$y)
+  knn5_2tab = table(knn5_2, scenario2te$y)
+  errorknn5_1 = (knn5_1tab["0", "1"] + knn5_1tab["1", "0"])/100
+  errorknn5_2 = (knn5_2tab["0", "1"] + knn5_2tab["1", "0"])/100
+  
+  row1 = cbind("LDA", error_1,error_2)
+  row2 = cbind("QDA", errorqda1,errorqda2)
+  row3 = cbind("KNN1", errorknn1_1,errorknn1_2)
+  row4 = cbind("KNN5", errorknn5_1,errorknn5_1)
+  rbind(row1, row2, row3, row4)
+  
+}
+partb()
+```
+
+
+**Second:** Run your function 100 times, print the *dimension* of your function output using the `dim` function (you will have a 4 $\times$ 2 $\times$ 100 array), and print the **first three** matrices in the array only.
+```{r}
+result = replicate(100, partb(), simplify=FALSE)
+dim(result)
+for(i in 1:3){
+  print(result[[i]])
+}
+```
+
+### [c.] *(5 points)*
+Make a box plot akin to Figure 4.10 and 4.11 in the ISL book.  
+
+
+
+
